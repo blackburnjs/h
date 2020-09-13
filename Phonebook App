@@ -1,0 +1,247 @@
+from tkinter import *
+from tkinter import simpledialog, messagebox
+from tkinter.ttk import Treeview
+import sqlite3
+import operator
+
+class Phone():
+    def __init__(self, root):
+        #Variables
+        self.tk = ""
+        self.window = ""
+        self.entries = ()
+
+        #tkinter GUI widgets
+        self.frame = Frame(root, width=400, height=20)
+        self.frame.pack()
+
+        self.label = Label(self.frame, text="Contact List")
+        self.label.pack()
+
+        self.tree = Treeview(self.frame)
+        self.tree["columns"] = ("First Name", "Last Name", "Email")
+        self.tree["show"] = "headings"
+        self.tree.heading("First Name", text="First Name")
+        self.tree.heading("Last Name", text="Last Name")
+        self.tree.heading("Email", text="Email")
+        self.curItem = self.tree.selection()
+        self.tree.pack()
+
+        # self.listbox = Listbox(self.frame, height=20, width=30)
+        # self.listbox.pack()
+
+        self.frame2 = Frame(root, width=100, height=5)
+        self.frame2.pack()
+
+        # Runs the delete contact function
+        self.del_button = Button(self.frame2, text="Delete Contact",
+                command=lambda: self.delete_customer(self.tree.selection(), (self.tree.item(self.tree.selection())['values'][0], self.tree.item(self.tree.selection())['values'][1], self.tree.item(self.tree.selection())['values'][2])))
+        self.del_button.grid(row=0, column=3)
+
+        # Opens up the add contact window
+        self.add_contact_window = Button(self.frame2, text="Add Contact", command=lambda: self.open_entry_window())
+        self.add_contact_window.grid(row=0, column=1)
+
+        self.edit_contact_button = Button(self.frame2, text="Edit Contact", command=lambda: self.open_edit_contact_window())
+        self.edit_contact_button.grid(row=0, column=2)
+
+    def open_edit_contact_window(self):
+        self.window = EditForm()
+
+    def open_entry_window(self):
+        # Runs the entry form class for adding a contact
+        self.window = EntryForm()
+
+    def connect_to_database(self):
+        # Opens connection to sqlite customer.db database
+        conn = sqlite3.connect('customer.db')
+        c = conn.cursor()
+        return c, conn
+
+    def disconnect_from_database(self, conn):
+        # Disconnects from any database
+        conn.commit()
+        conn.close()
+
+    def customer_fetchall(self):
+        # Gets all of the customers from the customer.db database and returns them
+        c, conn = self.connect_to_database()
+        c.execute("SELECT * FROM customers")
+        items = c.fetchall()
+        self.disconnect_from_database(conn)
+        return items
+
+    def add_customer(self, params):
+        # Inputs: A list of tuples containing contact information structured (first, last, email)
+        # Outputs: Calls print function
+        c, conn = self.connect_to_database()
+        c.execute("SELECT * FROM customers")
+        c.execute("INSERT INTO customers VALUES(?,?,?)", params)
+        self.disconnect_from_database(conn)
+        self.tree.delete(*self.tree.get_children())
+        self.print()
+
+    def update_contact(self, updated_info):
+        current_selection = self.get_current_selection()
+        combined_tuple = updated_info + current_selection
+        c, conn = self.connect_to_database()
+        c.execute(""" UPDATE customers SET first_name = ?, last_name = ?, email = ? 
+                  WHERE (first_name = ? OR first_name IS NULL) AND (last_name = ? OR last_name IS NULL) 
+                  AND (email = ? OR email IS NULL)""",
+                  combined_tuple)
+        self.disconnect_from_database(conn)
+        self.tree.delete(*self.tree.get_children())
+        self.print()
+
+    def get_current_selection(self):
+        try:
+            contact_tuple = (
+                self.tree.item(self.tree.selection())['values'][0],
+                self.tree.item(self.tree.selection())['values'][1],
+                self.tree.item(self.tree.selection())['values'][2]
+            )
+            return contact_tuple
+        except (TypeError, IndexError):
+            pass
+
+    def delete_continue_popup(self):
+        # Triggers a message box that asks whether or not to continue deleting a contact
+        result = messagebox.askquestion("Delete Contact", "Are You Sure?", icon='warning')
+        return result
+
+    def delete_customer(self, selection, d):
+        # Asks whether to delete a contact in a pop dialogue
+        # box and continues or exits based on answer. Deletes selected contact in listbox from customer.db
+        ans = self.delete_continue_popup()
+        if ans == "yes":
+            c, conn = self.connect_to_database()
+            c.execute("SELECT ROWID, * FROM customers")
+            c.execute(
+                "DELETE FROM customers WHERE (first_name = ? OR first_name IS NULL) AND (last_name = ? OR last_name IS NULL) AND (email = ? OR email IS NULL)",
+                d)
+            self.tree.delete(selection)
+            self.disconnect_from_database(conn)
+        else:
+            pass
+
+    def print(self):
+        # Prints contacts to listbox on screen
+        items = self.customer_fetchall()
+        items.sort(key= lambda a: a[1].lower(), reverse=False)
+        v = iid = 0
+        for item in items:
+            self.tree.insert("", v, values=item)
+            v = iid = v + 1
+        # for item in items:
+        #     self.listbox.insert(END, item)
+
+
+class EntryForm:
+    def __init__(self):
+        self.entry_tuple = ()
+        self.entries = ()
+        self.top = Toplevel()
+        self.top.title("Add Contact")
+
+        self.first_name = StringVar()
+        self.first_name_label = Label(self.top, text="First Name")
+        self.first_name_entry = Entry(self.top, textvariable=self.first_name)
+        self.first_name_entry.grid(row=0, column=1)
+        self.first_name_label.grid(row=0, column=0)
+
+        self.last_name = StringVar()
+        self.last_name_entry = Entry(self.top, textvariable=self.last_name)
+        self.last_name_label = Label(self.top, text="Last Name")
+        self.last_name_entry.grid(row=1, column=1)
+        self.last_name_label.grid(row=1, column=0)
+
+        self.email = StringVar()
+        self.email_entry = Entry(self.top, textvariable=self.email)
+        self.email_label = Label(self.top, text="Email")
+        self.email_entry.grid(row=2, column=1)
+        self.email_label.grid(row=2, column=0)
+
+        self.submit_button = Button(self.top, text="Submit", command = lambda: self.submit_entries())
+        self.submit_button.grid(row=3,  column=2)
+
+    def connect_to_database(self):
+        conn = sqlite3.connect('customer.db')
+
+        c = conn.cursor()
+        return c, conn
+
+    def disconnect_from_database(self, conn):
+        conn.commit()
+        conn.close()
+
+    def return_entry(self):
+        self.entry_tuple = (self.first_name.get(), self.last_name.get(), self.email.get())
+        return self.entry_tuple
+
+    def submit_entries(self):
+        r.add_customer(self.return_entry())
+        self.close_entry_form()
+
+    def close_entry_form(self):
+        self.top.destroy()
+        self.top.update()
+
+
+class EditForm:
+    def __init__(self):
+        try:
+            self.top = Toplevel()
+            self.top.title("Edit Contact")
+
+            self.current_selection_info_tuple = r.get_current_selection()
+
+            self.first_name = StringVar()
+            self.first_name_label = Label(self.top, text="First Name")
+            self.first_name_entry = Entry(self.top, textvariable=self.first_name)
+
+            self.last_name = StringVar()
+            self.last_name_entry = Entry(self.top, textvariable=self.last_name)
+            self.last_name_label = Label(self.top, text="Last Name")
+
+            self.email = StringVar()
+            self.email_entry = Entry(self.top, textvariable=self.email)
+            self.email_label = Label(self.top, text="Email")
+
+            self.submit_button = Button(self.top, text="Submit", command=lambda: self.submit_entries())
+
+            self.first_name_entry.insert(0, self.current_selection_info_tuple[0])
+            self.last_name_entry.insert(0, self.current_selection_info_tuple[1])
+            self.email_entry.insert(0, self.current_selection_info_tuple[2])
+
+            self.first_name_entry.grid(row=0, column=1)
+            self.first_name_label.grid(row=0, column=0)
+            self.last_name_entry.grid(row=1, column=1)
+            self.last_name_label.grid(row=1, column=0)
+            self.email_entry.grid(row=2, column=1)
+            self.email_label.grid(row=2, column=0)
+            self.submit_button.grid(row=3, column=2)
+        except(TypeError):
+            self.top.destroy()
+            self.top.update()
+            messagebox.showerror(title="Error", message="No Selection Made", icon='warning')
+            pass
+    def return_entry(self):
+        self.entry_tuple = (self.first_name.get(), self.last_name.get(), self.email.get())
+        return self.entry_tuple
+
+    def submit_entries(self):
+        r.update_contact(self.return_entry())
+        self.close_entry_form()
+
+    def close_entry_form(self):
+        self.top.destroy()
+        self.top.update()
+
+root = Tk()
+root.title("Phonebook")
+root.geometry("600x440")
+
+r = Phone(root)
+r.print()
+
+root.mainloop()
