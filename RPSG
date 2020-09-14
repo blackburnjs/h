@@ -1,0 +1,12 @@
+import random
+def RPSG_Code(player_choice):
+	choice_list = ('rock', 'paper', 'scissors')
+	choice_wins = {'rock': 'scissors', 'paper': 'rock', 'scissors': 'paper'}
+	computer_choice = random.choice(choice_list)
+	key, value = computer_choice, player_choice
+	if value == choice_wins[key]:
+		return 'I chose ' + computer_choice + '. I win!'
+	elif player_choice == computer_choice:
+		return "Draw."
+	else:
+		return 'I chose ' + computer_choice + '. You win!'
